@@ -1,0 +1,22 @@
+# Never forward plain names (without a dot or domain part)
+domain-needed
+
+# Never forward addresses in the non-routed address spaces.
+bogus-priv
+
+# Don't let dnsmasq poll /etc/resolv.conf or other resolv
+# files to prevent leaking data into the tunnel.
+no-resolv
+no-poll
+
+# Set the DNS server to something outside the real LAN.
+server=8.8.8.8
+
+# Listen on the AP interface.
+interface=wlan1
+
+# Don't listen on any other interfaces no matter the IP address.
+bind-interfaces
+
+# Use this address pool
+dhcp-range=172.16.32.10,172.16.32.20,12h

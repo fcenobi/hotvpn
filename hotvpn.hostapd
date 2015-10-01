@@ -1,0 +1,485 @@
+##### hostapd configuration file ##############################################
+# Empty lines and lines starting with # are ignored
+
+# AP netdevice name (without 'ap' postfix, i.e., wlan0 uses wlan0ap for
+# management frames); ath0 for madwifi
+interface=wlan1
+
+# Driver interface type (hostap/wired/madwifi/test/none/nl80211/bsd);
+# default: hostap). nl80211 is used with all Linux mac80211 drivers.
+# Use driver=none if building hostapd as a standalone RADIUS server that does
+# not control any wireless/wired driver.
+driver=nl80211
+
+# hostapd event logger configuration
+# Levels (minimum value for logged events):
+#  0 = verbose debugging
+#  1 = debugging
+#  2 = informational messages
+#  3 = notification
+#  4 = warning
+#
+logger_syslog=-1
+logger_syslog_level=2
+logger_stdout=-1
+logger_stdout_level=2
+
+# Interface for separate control program.
+# /var/run/hostapd is the recommended directory for sockets and by default,
+# hostapd_cli will use it when trying to connect with hostapd.
+ctrl_interface=/var/run/hostapd
+
+# Access control for the control interface can be configured by setting the
+# directory to allow only members of a group to use sockets.
+# This variable can be a group name or gid.
+#ctrl_interface_group=wheel
+ctrl_interface_group=0
+
+
+##### IEEE 802.11 related configuration #######################################
+
+# SSID to be used in IEEE 802.11 management frames
+ssid=<YOUR_AP_NAME_HERE>
+
+# Operation mode (a = IEEE 802.11a, b = IEEE 802.11b, g = IEEE 802.11g,
+# ad = IEEE 802.11ad (60 GHz); a/g options are used with IEEE 802.11n, too, to
+# specify band)
+# Default: IEEE 802.11b
+hw_mode=g
+
+# Channel number (IEEE 802.11)
+# If CONFIG_ACS build option is enabled, the channel can be selected
+# automatically at run time by setting channel=acs_survey or channel=0, both of
+# which will enable the ACS survey based algorithm.
+channel=11
+
+# Maximum number of stations allowed in station table. New stations will be
+# rejected after the station table is full. IEEE 802.11 has a limit of 2007
+# different association IDs, so this number should not be larger than that.
+# (default: 2007)
+max_num_sta=5
+
+# RTS/CTS threshold; 2347 = disabled (default); range 0..2347
+# If this field is not included in hostapd.conf, hostapd will not control
+# RTS threshold and 'iwconfig wlan# rts <val>' can be used to set it.
+rts_threshold=2347
+
+# Fragmentation threshold; 2346 = disabled (default); range 256..2346
+# If this field is not included in hostapd.conf, hostapd will not control
+# fragmentation threshold and 'iwconfig wlan# frag <val>' can be used to set
+# it.
+fragm_threshold=2346
+
+# Station MAC address -based authentication
+# Please note that this kind of access control requires a driver that uses
+# hostapd to take care of management frame processing and as such, this can be
+# used with driver=hostap or driver=nl80211, but not with driver=madwifi.
+# 0 = accept unless in deny list
+# 1 = deny unless in accept list
+# 2 = use external RADIUS server (accept/deny lists are searched first)
+macaddr_acl=0
+
+# Accept/deny lists are read from separate files (containing list of
+# MAC addresses, one per line). Use absolute path name to make sure that the
+# files can be read on SIGHUP configuration reloads.
+accept_mac_file=/etc/hostapd/hostapd.accept
+#deny_mac_file=/etc/hostapd.deny
+
+# IEEE 802.11 specifies two authentication algorithms. hostapd can be
+# configured to allow both of these or only one. Open system authentication
+# should be used with IEEE 802.1X.
+# Bit fields of allowed authentication algorithms:
+# bit 0 = Open System Authentication
+# bit 1 = Shared Key Authentication (requires WEP)
+auth_algs=3
+
+# Send empty SSID in beacons and ignore probe request frames that do not
+# specify full SSID, i.e., require stations to know SSID.
+# default: disabled (0)
+# 1 = send empty (length=0) SSID in beacon and ignore probe request for
+#     broadcast SSID
+# 2 = clear SSID (ASCII 0), but keep the original length (this may be required
+#     with some clients that do not support empty SSID) and ignore probe
+#     requests for broadcast SSID
+ignore_broadcast_ssid=0
+
+# Start the AP with beaconing disabled by default.
+start_disabled=0
+
+
+##### IEEE 802.11n related configuration ######################################
+
+# ieee80211n: Whether IEEE 802.11n (HT) is enabled
+# 0 = disabled (default)
+# 1 = enabled
+# Note: You will also need to enable WMM for full HT functionality.
+ieee80211n=0
+
+##### IEEE 802.11ac related configuration #####################################
+
+# ieee80211ac: Whether IEEE 802.11ac (VHT) is enabled
+# 0 = disabled (default)
+# 1 = enabled
+# Note: You will also need to enable WMM for full VHT functionality.
+ieee80211ac=0
+
+
+##### Integrated EAP server ###################################################
+
+# Use integrated EAP server instead of external RADIUS authentication
+# server. This is also needed if hostapd is configured to act as a RADIUS
+# authentication server.
+eap_server=0
+
+# Path for EAP server user database
+# If SQLite support is included, this can be set to "sqlite:/path/to/sqlite.db"
+# to use SQLite database instead of a text file.
+#eap_user_file=/etc/hostapd.eap_user
+
+# CA certificate (PEM or DER file) for EAP-TLS/PEAP/TTLS
+#ca_cert=/etc/hostapd.ca.pem
+
+# Server certificate (PEM or DER file) for EAP-TLS/PEAP/TTLS
+#server_cert=/etc/hostapd.server.pem
+
+# Private key matching with the server certificate for EAP-TLS/PEAP/TTLS
+# This may point to the same file as server_cert if both certificate and key
+# are included in a single file. PKCS#12 (PFX) file (.p12/.pfx) can also be
+# used by commenting out server_cert and specifying the PFX file as the
+# private_key.
+#private_key=/etc/hostapd.server.prv
+
+# Passphrase for private key
+#private_key_passwd=secret passphrase
+
+# Server identity
+# EAP methods that provide mechanism for authenticated server identity delivery
+# use this value. If not set, "hostapd" is used as a default.
+#server_id=server.example.com
+
+# Enable CRL verification.
+# Note: hostapd does not yet support CRL downloading based on CDP. Thus, a
+# valid CRL signed by the CA is required to be included in the ca_cert file.
+# This can be done by using PEM format for CA certificate and CRL and
+# concatenating these into one file. Whenever CRL changes, hostapd needs to be
+# restarted to take the new CRL into use.
+# 0 = do not verify CRLs (default)
+# 1 = check the CRL of the user certificate
+# 2 = check all CRLs in the certificate path
+#check_crl=1
+
+# Cached OCSP stapling response (DER encoded)
+# If set, this file is sent as a certificate status response by the EAP server
+# if the EAP peer requests certificate status in the ClientHello message.
+# This cache file can be updated, e.g., by running following command
+# periodically to get an update from the OCSP responder:
+# openssl ocsp \
+#	-no_nonce \
+#	-CAfile /etc/hostapd.ca.pem \
+#	-issuer /etc/hostapd.ca.pem \
+#	-cert /etc/hostapd.server.pem \
+#	-url http://ocsp.example.com:8888/ \
+#	-respout /tmp/ocsp-cache.der
+#ocsp_stapling_response=/tmp/ocsp-cache.der
+
+# dh_file: File path to DH/DSA parameters file (in PEM format)
+# This is an optional configuration file for setting parameters for an
+# ephemeral DH key exchange. In most cases, the default RSA authentication does
+# not use this configuration. However, it is possible setup RSA to use
+# ephemeral DH key exchange. In addition, ciphers with DSA keys always use
+# ephemeral DH keys. This can be used to achieve forward secrecy. If the file
+# is in DSA parameters format, it will be automatically converted into DH
+# params. This parameter is required if anonymous EAP-FAST is used.
+# You can generate DH parameters file with OpenSSL, e.g.,
+# "openssl dhparam -out /etc/hostapd.dh.pem 1024"
+#dh_file=/etc/hostapd.dh.pem
+
+# Fragment size for EAP methods
+#fragment_size=1400
+
+# Finite cyclic group for EAP-pwd. Number maps to group of domain parameters
+# using the IANA repository for IKE (RFC 2409).
+#pwd_group=19
+
+# Configuration data for EAP-SIM database/authentication gateway interface.
+# This is a text string in implementation specific format. The example
+# implementation in eap_sim_db.c uses this as the UNIX domain socket name for
+# the HLR/AuC gateway (e.g., hlr_auc_gw). In this case, the path uses "unix:"
+# prefix. If hostapd is built with SQLite support (CONFIG_SQLITE=y in .config),
+# database file can be described with an optional db=<path> parameter.
+#eap_sim_db=unix:/tmp/hlr_auc_gw.sock
+#eap_sim_db=unix:/tmp/hlr_auc_gw.sock db=/tmp/hostapd.db
+
+# Encryption key for EAP-FAST PAC-Opaque values. This key must be a secret,
+# random value. It is configured as a 16-octet value in hex format. It can be
+# generated, e.g., with the following command:
+# od -tx1 -v -N16 /dev/random | colrm 1 8 | tr -d ' '
+#pac_opaque_encr_key=000102030405060708090a0b0c0d0e0f
+
+# EAP-FAST authority identity (A-ID)
+# A-ID indicates the identity of the authority that issues PACs. The A-ID
+# should be unique across all issuing servers. In theory, this is a variable
+# length field, but due to some existing implementations requiring A-ID to be
+# 16 octets in length, it is strongly recommended to use that length for the
+# field to provid interoperability with deployed peer implementations. This
+# field is configured in hex format.
+#eap_fast_a_id=101112131415161718191a1b1c1d1e1f
+
+# EAP-FAST authority identifier information (A-ID-Info)
+# This is a user-friendly name for the A-ID. For example, the enterprise name
+# and server name in a human-readable format. This field is encoded as UTF-8.
+#eap_fast_a_id_info=test server
+
+# Enable/disable different EAP-FAST provisioning modes:
+#0 = provisioning disabled
+#1 = only anonymous provisioning allowed
+#2 = only authenticated provisioning allowed
+#3 = both provisioning modes allowed (default)
+#eap_fast_prov=3
+
+# EAP-FAST PAC-Key lifetime in seconds (hard limit)
+#pac_key_lifetime=604800
+
+# EAP-FAST PAC-Key refresh time in seconds (soft limit on remaining hard
+# limit). The server will generate a new PAC-Key when this number of seconds
+# (or fewer) of the lifetime remains.
+#pac_key_refresh_time=86400
+
+# EAP-SIM and EAP-AKA protected success/failure indication using AT_RESULT_IND
+# (default: 0 = disabled).
+#eap_sim_aka_result_ind=1
+
+# Trusted Network Connect (TNC)
+# If enabled, TNC validation will be required before the peer is allowed to
+# connect. Note: This is only used with EAP-TTLS and EAP-FAST. If any other
+# EAP method is enabled, the peer will be allowed to connect without TNC.
+#tnc=1
+
+##### RADIUS client configuration #############################################
+# for IEEE 802.1X with external Authentication Server, IEEE 802.11
+# authentication with external ACL for MAC addresses, and accounting
+
+# The own IP address of the access point (used as NAS-IP-Address)
+own_ip_addr=127.0.0.1
+
+# Optional NAS-Identifier string for RADIUS messages. When used, this should be
+# a unique to the NAS within the scope of the RADIUS server. For example, a
+# fully qualified domain name can be used here.
+# When using IEEE 802.11r, nas_identifier must be set and must be between 1 and
+# 48 octets long.
+#nas_identifier=ap.example.com
+
+# RADIUS authentication server
+#auth_server_addr=127.0.0.1
+#auth_server_port=1812
+#auth_server_shared_secret=secret
+
+# RADIUS accounting server
+#acct_server_addr=127.0.0.1
+#acct_server_port=1813
+#acct_server_shared_secret=secret
+
+# Secondary RADIUS servers; to be used if primary one does not reply to
+# RADIUS packets. These are optional and there can be more than one secondary
+# server listed.
+#auth_server_addr=127.0.0.2
+#auth_server_port=1812
+#auth_server_shared_secret=secret2
+#
+#acct_server_addr=127.0.0.2
+#acct_server_port=1813
+#acct_server_shared_secret=secret2
+
+# Retry interval for trying to return to the primary RADIUS server (in
+# seconds). RADIUS client code will automatically try to use the next server
+# when the current server is not replying to requests. If this interval is set,
+# primary server will be retried after configured amount of time even if the
+# currently used secondary server is still working.
+#radius_retry_primary_interval=600
+
+
+# Interim accounting update interval
+# If this is set (larger than 0) and acct_server is configured, hostapd will
+# send interim accounting updates every N seconds. Note: if set, this overrides
+# possible Acct-Interim-Interval attribute in Access-Accept message. Thus, this
+# value should not be configured in hostapd.conf, if RADIUS server is used to
+# control the interim interval.
+# This value should not be less 600 (10 minutes) and must not be less than
+# 60 (1 minute).
+#radius_acct_interim_interval=600
+
+# Request Chargeable-User-Identity (RFC 4372)
+# This parameter can be used to configure hostapd to request CUI from the
+# RADIUS server by including Chargeable-User-Identity attribute into
+# Access-Request packets.
+#radius_request_cui=1
+
+# Dynamic VLAN mode; allow RADIUS authentication server to decide which VLAN
+# is used for the stations. This information is parsed from following RADIUS
+# attributes based on RFC 3580 and RFC 2868: Tunnel-Type (value 13 = VLAN),
+# Tunnel-Medium-Type (value 6 = IEEE 802), Tunnel-Private-Group-ID (value
+# VLANID as a string). Optionally, the local MAC ACL list (accept_mac_file) can
+# be used to set static client MAC address to VLAN ID mapping.
+# 0 = disabled (default)
+# 1 = option; use default interface if RADIUS server does not include VLAN ID
+# 2 = required; reject authentication if RADIUS server does not include VLAN ID
+#dynamic_vlan=0
+
+# VLAN interface list for dynamic VLAN mode is read from a separate text file.
+# This list is used to map VLAN ID from the RADIUS server to a network
+# interface. Each station is bound to one interface in the same way as with
+# multiple BSSIDs or SSIDs. Each line in this text file is defining a new
+# interface and the line must include VLAN ID and interface name separated by
+# white space (space or tab).
+# If no entries are provided by this file, the station is statically mapped
+# to <bss-iface>.<vlan-id> interfaces.
+#vlan_file=/etc/hostapd.vlan
+
+# Interface where 802.1q tagged packets should appear when a RADIUS server is
+# used to determine which VLAN a station is on.  hostapd creates a bridge for
+# each VLAN.  Then hostapd adds a VLAN interface (associated with the interface
+# indicated by 'vlan_tagged_interface') and the appropriate wireless interface
+# to the bridge.
+#vlan_tagged_interface=eth0
+
+# Bridge (prefix) to add the wifi and the tagged interface to. This gets the
+# VLAN ID appended. It defaults to brvlan%d if no tagged interface is given
+# and br%s.%d if a tagged interface is given, provided %s = tagged interface
+# and %d = VLAN ID.
+#vlan_bridge=brvlan
+
+# When hostapd creates a VLAN interface on vlan_tagged_interfaces, it needs
+# to know how to name it.
+# 0 = vlan<XXX>, e.g., vlan1
+# 1 = <vlan_tagged_interface>.<XXX>, e.g. eth0.1
+#vlan_naming=0
+
+# Arbitrary RADIUS attributes can be added into Access-Request and
+# Accounting-Request packets by specifying the contents of the attributes with
+# the following configuration parameters. There can be multiple of these to
+# add multiple attributes. These parameters can also be used to override some
+# of the attributes added automatically by hostapd.
+# Format: <attr_id>[:<syntax:value>]
+# attr_id: RADIUS attribute type (e.g., 26 = Vendor-Specific)
+# syntax: s = string (UTF-8), d = integer, x = octet string
+# value: attribute value in format indicated by the syntax
+# If syntax and value parts are omitted, a null value (single 0x00 octet) is
+# used.
+#
+# Additional Access-Request attributes
+# radius_auth_req_attr=<attr_id>[:<syntax:value>]
+# Examples:
+# Operator-Name = "Operator"
+#radius_auth_req_attr=126:s:Operator
+# Service-Type = Framed (2)
+#radius_auth_req_attr=6:d:2
+# Connect-Info = "testing" (this overrides the automatically generated value)
+#radius_auth_req_attr=77:s:testing
+# Same Connect-Info value set as a hexdump
+#radius_auth_req_attr=77:x:74657374696e67
+
+#
+# Additional Accounting-Request attributes
+# radius_acct_req_attr=<attr_id>[:<syntax:value>]
+# Examples:
+# Operator-Name = "Operator"
+#radius_acct_req_attr=126:s:Operator
+
+# Dynamic Authorization Extensions (RFC 5176)
+# This mechanism can be used to allow dynamic changes to user session based on
+# commands from a RADIUS server (or some other disconnect client that has the
+# needed session information). For example, Disconnect message can be used to
+# request an associated station to be disconnected.
+#
+# This is disabled by default. Set radius_das_port to non-zero UDP port
+# number to enable.
+#radius_das_port=3799
+#
+# DAS client (the host that can send Disconnect/CoA requests) and shared secret
+#radius_das_client=192.168.1.123 shared secret here
+#
+# DAS Event-Timestamp time window in seconds
+#radius_das_time_window=300
+#
+# DAS require Event-Timestamp
+#radius_das_require_event_timestamp=1
+
+##### RADIUS authentication server configuration ##############################
+
+# hostapd can be used as a RADIUS authentication server for other hosts. This
+# requires that the integrated EAP server is also enabled and both
+# authentication services are sharing the same configuration.
+
+# File name of the RADIUS clients configuration for the RADIUS server. If this
+# commented out, RADIUS server is disabled.
+#radius_server_clients=/etc/hostapd.radius_clients
+
+# The UDP port number for the RADIUS authentication server
+#radius_server_auth_port=1812
+
+# The UDP port number for the RADIUS accounting server
+# Commenting this out or setting this to 0 can be used to disable RADIUS
+# accounting while still enabling RADIUS authentication.
+#radius_server_acct_port=1813
+
+# Use IPv6 with RADIUS server (IPv4 will also be supported using IPv6 API)
+#radius_server_ipv6=1
+
+
+##### WPA/IEEE 802.11i configuration ##########################################
+
+# Enable WPA. Setting this variable configures the AP to require WPA (either
+# WPA-PSK or WPA-RADIUS/EAP based on other configuration). For WPA-PSK, either
+# wpa_psk or wpa_passphrase must be set and wpa_key_mgmt must include WPA-PSK.
+# Instead of wpa_psk / wpa_passphrase, wpa_psk_radius might suffice.
+# For WPA-RADIUS/EAP, ieee8021x must be set (but without dynamic WEP keys),
+# RADIUS authentication server must be configured, and WPA-EAP must be included
+# in wpa_key_mgmt.
+# This field is a bit field that can be used to enable WPA (IEEE 802.11i/D3.0)
+# and/or WPA2 (full IEEE 802.11i/RSN):
+# bit0 = WPA
+# bit1 = IEEE 802.11i/RSN (WPA2) (dot11RSNAEnabled)
+wpa=2
+
+# WPA pre-shared keys for WPA-PSK. This can be either entered as a 256-bit
+# secret in hex format (64 hex digits), wpa_psk, or as an ASCII passphrase
+# (8..63 characters) that will be converted to PSK. This conversion uses SSID
+# so the PSK changes when ASCII passphrase is used and the SSID is changed.
+# wpa_psk (dot11RSNAConfigPSKValue)
+# wpa_passphrase (dot11RSNAConfigPSKPassPhrase)
+#wpa_psk=0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+wpa_passphrase=0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+
+
+# Optionally, WPA PSKs can be read from a separate text file (containing list
+# of (PSK,MAC address) pairs. This allows more than one PSK to be configured.
+# Use absolute path name to make sure that the files can be read on SIGHUP
+# configuration reloads.
+#wpa_psk_file=/etc/hostapd.wpa_psk
+
+# Optionally, WPA passphrase can be received from RADIUS authentication server
+# This requires macaddr_acl to be set to 2 (RADIUS)
+# 0 = disabled (default)
+# 1 = optional; use default passphrase/psk if RADIUS server does not include
+#	Tunnel-Password
+# 2 = required; reject authentication if RADIUS server does not include
+#	Tunnel-Password
+#wpa_psk_radius=0
+
+# Set of accepted key management algorithms (WPA-PSK, WPA-EAP, or both). The
+# entries are separated with a space. WPA-PSK-SHA256 and WPA-EAP-SHA256 can be
+# added to enable SHA256-based stronger algorithms.
+# (dot11RSNAConfigAuthenticationSuitesTable)
+wpa_key_mgmt=WPA-PSK
+
+wpa_pairwise=CCMP
+wpa_strict_rekey=1
+
+
+##### Wi-Fi Protected Setup (WPS) #############################################
+
+# WPS state
+# 0 = WPS disabled (default)
+# 1 = WPS enabled, not configured
+# 2 = WPS enabled, configured
+wps_state=0
