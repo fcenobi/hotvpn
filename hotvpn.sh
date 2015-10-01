@@ -1,16 +1,27 @@
 #!/bin/bash
 set -e
 
+iptables=/sbin/iptables
+ip=/sbin/ip
+
+get_addr(){
+	ip -4 addr show dev $1 | grep inet | head -n1 | awk '{print $2}'
+}
+
+get_net(){
+	ip addr show dev $1 | grep inet | head -n1 | awk '{print $2}'
+}
+
 WAN=pia0
-WAN_IP=$(ip addr show dev $WAN | grep inet | awk '{print $2}')
-WAN_NET=$(ip addr show dev $WAN | grep inet | awk '{print $4}')
+WAN_IP=$(get_addr $WAN)
+WAN_NET=$(ip addr show dev $WAN | grep inet | head -n1 | awk '{print $4}')
 LAN=wlan1
-LAN_IP=$(ip addr show dev $LAN | grep inet | awk '{print $2}')
-LAN_NET=$(ip addr show dev $LAN | grep inet | awk '{print $4}')
+LAN_IP=$(get_addr $LAN)
+LAN_NET=$(get_net $LAN)
 NO_GO=wlan0
 NO_GO_ALT=eth0
-NO_GO_IP=$(ip addr show dev $NO_GO | grep inet | awk '{print $2}')
-NO_GO_NET=$(ip addr show dev $NO_GO | grep inet | awk '{print $4}')
+NO_GO_IP=$(get_addr $NO_GO)
+NO_GO_NET=$(get_net $NO_GO)
 
 RT_TABLE_ENTRY='100 hotvpn'
 
@@ -76,15 +87,15 @@ _start(){
 	$iptables -A FORWARD -i $LAN -o $WAN -j ACCEPT
 
 	# Isolate the AP and VPN from the local network
-	$iptables -A INPUT -i $NO_GO -s $WAN -j DROP
+	$iptables -A INPUT -i $NO_GO -s $WAN_NET -j DROP
 	if [[ -n $NO_GO_ALT ]]; then
-		$iptables -A INPUT -i $NO_GO_ALT -s $WAN -j DROP
+		$iptables -A INPUT -i $NO_GO_ALT -s $WAN_NET -j DROP
 	fi
 
 	# Add routes to the routing table
-	ip rule add from $LAN_NET table hotvpn
-	ip route add default dev $WAN table hotvpn
-	ip route add $LAN_NET dev $LAN table hotvpn
+	$ip rule add from $LAN_NET table hotvpn
+	$ip route add default dev $WAN table hotvpn
+	$ip route add $LAN_NET dev $LAN table hotvpn
 
 	# Enable IP forwarding
 	echo 1 > /proc/sys/net/ipv4/ip_forward
@@ -101,9 +112,9 @@ _stop(){
 	echo 0 > /proc/sys/net/ipv4/ip_forward
 
 	# Remove routes in the routing table
-	ip rule del from $LAN_NET table hotvpn
-	ip route del default dev $WAN table hotvpn
-	ip route del $LAN_NET dev $LAN table hotvpn
+	$ip rule del from $LAN_NET table hotvpn
+	$ip route del default dev $WAN table hotvpn
+	$ip route del $LAN_NET dev $LAN table hotvpn
 
 	# Tear down NAT
 	$iptables -t nat -D POSTROUTING -s $LAN_NET -o $WAN -j MASQUERADE
@@ -111,9 +122,9 @@ _stop(){
 	$iptables -D FORWARD -i $LAN -o $WAN -j ACCEPT
 
 	# Ditch isolation rules
-	$iptables -D INPUT -i $NO_GO -s $WAN -j DROP
+	$iptables -D INPUT -i $NO_GO -s $WAN_NET -j DROP
 	if [[ -n $NO_GO_ALT ]]; then
-		$iptables -D INPUT -i $NO_GO_ALT -s $WAN -j DROP
+		$iptables -D INPUT -i $NO_GO_ALT -s $WAN_NET -j DROP
 	fi
 
 	# Turn off the DHCP server
