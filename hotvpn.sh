@@ -1,29 +1,22 @@
 #!/bin/bash
 set -e
 
-iptables=/sbin/iptables
-ip=/sbin/ip
+ip_parse=$(dirname "$(readlink -f $0)")/ip_parse
 
-get_addr(){
-	ip -4 addr show dev $1 | grep inet | head -n1 | awk '{print $2}'
-}
-
-get_net(){
-	ip addr show dev $1 | grep inet | head -n1 | awk '{print $2}'
-}
-
+WAN_UUID=49ae9ddb-430e-4ca5-b4be-77e74d6e6ee2
 WAN=pia0
-WAN_IP=$(get_addr $WAN)
-WAN_NET=$(ip addr show dev $WAN | grep inet | head -n1 | awk '{print $4}')
+WAN_IP=$($ip_parse $WAN address 4)
+WAN_NET=$($ip_parse $WAN network 4)
 LAN=wlan1
-LAN_IP=$(get_addr $LAN)
-LAN_NET=$(get_net $LAN)
-NO_GO=wlan0
-NO_GO_ALT=eth0
-NO_GO_IP=$(get_addr $NO_GO)
-NO_GO_NET=$(get_net $NO_GO)
+LAN_IP=$($ip_parse $LAN address 4)
+LAN_NET=$($ip_parse $LAN network 4)
+
+declare -a NO_GO=( wlan0 eth0 )
 
 RT_TABLE_ENTRY='100 hotvpn'
+
+
+iptables=/sbin/iptables
 
 _install(){
 	if grep -q $RT_TABLE_ENTRY /etc/iproute2/rt_tables; then
@@ -73,13 +66,24 @@ _uninstall(){
 	_stop
 }
 
+_add_routes(){
+	set +e
+	set -x
+	# Add routes to the routing table
+	ip rule add from $LAN_NET table hotvpn
+	ip route add default dev $WAN table hotvpn
+	ip route add $LAN_NET dev $LAN table hotvpn
+}
+
 
 _start(){
+	set -x
 	# Make sure we have the network interfaces up already
-	if ! (ip addr show $LAN | grep -q inet) && ! (ip addr show $WAN | grep -q inet); then
-		echo Network interfaces $LAN and $WAN must already be up.
+	if ! (ip addr show $LAN | grep -q inet); then
+		echo Network interfaces $LAN must already be up.
 		return 1
 	fi
+	sudo -u $SUDO_USER nmcli connection up $WAN_UUID || echo -n
 
 	# Setup NAT
 	$iptables -t nat -A POSTROUTING -s $LAN_NET -o $WAN -j MASQUERADE
@@ -87,16 +91,13 @@ _start(){
 	$iptables -A FORWARD -i $LAN -o $WAN -j ACCEPT
 
 	# Isolate the AP and VPN from the local network
-	$iptables -A INPUT -i $NO_GO -s $WAN_NET -j DROP
-	if [[ -n $NO_GO_ALT ]]; then
-		$iptables -A INPUT -i $NO_GO_ALT -s $WAN_NET -j DROP
-	fi
+	for iface in $NO_GO; do
+		$iptables -A INPUT -i $iface -s $WAN_NET -j DROP
+	done
 
-	# Add routes to the routing table
-	$ip rule add from $LAN_NET table hotvpn
-	$ip route add default dev $WAN table hotvpn
-	$ip route add $LAN_NET dev $LAN table hotvpn
+	_add_routes
 
+	set +x
 	# Enable IP forwarding
 	echo 1 > /proc/sys/net/ipv4/ip_forward
 
@@ -105,33 +106,42 @@ _start(){
 
 	# Turn on the AP
 	/etc/init.d/hostapd start
+
+	_add_routes
+
 }
 
 _stop(){
 	# Disable IP forwarding
 	echo 0 > /proc/sys/net/ipv4/ip_forward
 
-	# Remove routes in the routing table
-	$ip rule del from $LAN_NET table hotvpn
-	$ip route del default dev $WAN table hotvpn
-	$ip route del $LAN_NET dev $LAN table hotvpn
+	if ! (ip addr show $LAN | grep -q inet) || ! (ip addr show $WAN | grep -q inet); then
+		set +e
+		echo "WARN: Missing an interface."
+		set -x
+	fi
 
+	# Remove routes in the routing table
+	ip route flush table hotvpn
 	# Tear down NAT
 	$iptables -t nat -D POSTROUTING -s $LAN_NET -o $WAN -j MASQUERADE
 	$iptables -D FORWARD -i $WAN -o $LAN -m state --state RELATED,ESTABLISHED -j ACCEPT
 	$iptables -D FORWARD -i $LAN -o $WAN -j ACCEPT
 
 	# Ditch isolation rules
-	$iptables -D INPUT -i $NO_GO -s $WAN_NET -j DROP
-	if [[ -n $NO_GO_ALT ]]; then
-		$iptables -D INPUT -i $NO_GO_ALT -s $WAN_NET -j DROP
-	fi
+	for iface in $NO_GO; do
+		$iptables -D INPUT -i $iface -s $WAN_NET -j DROP
+	done
+	set +x
+	set -e
 
 	# Turn off the DHCP server
 	/etc/init.d/dnsmasq stop
 
 	# Turn off the AP
 	/etc/init.d/hostapd stop
+
+	nmcli connection down $WAN
 }
 
 case $1 in
@@ -140,6 +150,9 @@ case $1 in
 		;;
 	stop)
 		_stop
+		;;
+	force-routes)
+		_add_routes
 		;;
 	install)
 		_install
