@@ -1,0 +1,239 @@
+#!/usr/bin/env python3
+
+
+import subprocess
+import re
+
+
+def _ipv_mask(version, cidr):
+	if version == 4:
+		return _ipv4_mask(cidr)
+	if version == 6:
+		return _ipv6_mask(cidr)
+	raise ValueError()
+
+
+def _ipv4_network(address, mask):
+	addr = [int(x, 10) for x in address.split('.')]
+	network = [0]*4
+	for octet in range(4):
+		network[octet] = addr[octet]&mask[octet]
+	return network
+
+
+def _ipv4_mask(cidr):
+	mask = [0,0,0,0]
+	for bit in range(cidr):
+		index = int(bit/8)
+		mask[index] = mask[index] + (1 << (7 - bit % 8))
+	return mask
+
+
+def _ipv6_mask(cidr):
+	mask = [0]*16
+	for bit in range(128):
+		index = int(bit/4)
+		print(index)
+		mask[index] = mask[index] + (1<<(15-bit%16))
+	return mask
+
+
+def _ssplit(text, separator=None, count=-1):
+	return [x.strip() for x in  text.strip().split(separator, count)]
+
+
+def _list_to_dict(flat):
+	pairs = {}
+	for index, item in enumerate(flat):
+		if not index % 2:
+			pairs[item] = None
+			key = item
+		else:
+			pairs[key] = item
+	return pairs
+
+
+def parse_ip_addr():
+	ip_addr_blob = subprocess.check_output(['ip', 'addr', 'show'])
+	return IPParser(ip_addr_blob.decode())
+
+
+class IPParser:
+
+	def __init__(self, stdout):
+		self.stdout = re.sub('^[0-9]+: ', '', stdout, count=1)
+		self._interfaces = {}
+		self._split_interfaces()
+
+	def _split_interfaces(self):
+		interface_blobs = [x.strip() for x in re.split('\n[0-9]+:', self.stdout, re.M)]
+		for blob in interface_blobs:
+			iface = Interface(blob)
+			self._interfaces[iface.device] = iface
+
+	def get_interface(self, device):
+		return self._interfaces.get(device)
+
+	def __dict__(self):
+		return {'interfaces': [x.__dict__() for x in self._interfaces.values() if x]}
+
+
+class INet:
+
+	def __init__(self, *lines):
+		self._lines = lines
+		self._scope = None
+		self._ipv = None
+		self._props = {}
+		self._address = None
+		self._broadcast = None
+		self._netmask = None
+		self.lifetime = None
+		self._process()
+		self._fill_out()
+
+	def _fill_out(self):
+		if '/' in self._props.get('inet', ''):
+			cidr_netmask = self._props.get('inet', '').split('/')
+			if len(cidr_netmask) == 2:
+				self._address = cidr_netmask[0]
+				self._cidr = int(cidr_netmask[1], 10)
+				self._netmask = _ipv_mask(self._ipv, self._cidr)
+		else:
+			self._address = self._props.get('inet', '')
+			self._cidr = 32
+			self._netmask = [255, 255, 255, 255]
+		self._broadcast = self._props.get('brd')
+		class lifetime:
+			valid = self._props.get('valid_lft')
+			preferred = self._props.get('preferred_lft')
+		self.lifetime = lifetime()
+
+	@property
+	def ip_version(self):
+		return self._ipv
+
+	@property
+	def address(self):
+		return self._address
+
+	@property
+	def network(self):
+		network = '.'.join([str(x) for x in _ipv4_network( self.address, self._netmask)])
+		return '%s/%s' % ( network, self._cidr)
+
+	@property
+	def netmask(self):
+		return '.'.join([str(x) for x in self._netmask])
+
+	def __getattr__(self, attr):
+		if attr in self._props:
+			return self._props[attr]
+		raise AttributeError('%s is not an attribute of %s.' % (attr, self.__class__.__name__))
+
+	def _process(self):
+		properties, scope = _ssplit(self._lines[0], 'scope')
+		self._scope = _ssplit(scope)
+		all_properties = _ssplit(properties)+_ssplit(self._lines[1])
+		self._props = _list_to_dict(all_properties)
+		if 'inet6' in self._props:
+			self._ipv = 6
+		elif 'inet' in self._props:
+			self._ipv = 4
+
+	def __dict__(self):
+		return {
+			'scope': self._scope,
+			'ipv': self._ipv,    
+			'address': self.address, 
+			'broadcast': self._broadcast,
+			'netmask': self.netmask, 
+			'lifetime': {
+				'preferred': self.lifetime.preferred,
+				'valid': self.lifetime.valid
+				}, 
+			'ip_version': self.ip_version,
+			'props': self._props
+			}
+
+
+class Interface:
+
+	def __init__(self, blob):
+		self._lines = _ssplit(blob, '\n')
+		self._name = None
+		self._flags = ()
+		self._props = {}
+		self._link = None
+		self._inets = []
+		self._process_lines()
+
+	@property
+	def inets(self):
+		return self._inets.copy()
+
+	@property
+	def device(self):
+		if '@' in self._name:
+			self._name = self._name.split('@',1)[0]
+		return self._name
+
+	def _process_line_0(self, blob):
+		self._name, remainder = _ssplit(blob, ':', 1)
+		flag_blob, props_blob = _ssplit(remainder, '>', 1)
+		self._flags = _ssplit(flag_blob.strip(' <>'), ',')
+		self._props = _list_to_dict(_ssplit(props_blob))
+
+	def _process_link_line(self, blob):
+		_, props = _ssplit(blob, '/', 1)
+		link_line = _ssplit(props, ' ')
+		if isinstance(link_line, (list, tuple, dict)):
+			self._link = _list_to_dict(link_line)
+		else:
+			self._link = link_line
+
+	def _process_lines(self):
+		self._process_line_0(self._lines[0])
+		self._process_link_line(self._lines[1])
+		if len(self._lines) > 2:
+			net_lines = self._lines[2:]
+			for index, net in enumerate(net_lines):
+				if net.strip().startswith('inet'):
+					self._inets.append(INet(net, net_lines[index+1]))
+
+	def __dict__( self ):
+		return {'name': self._name,
+			'flags': self._flags,
+			'props': self._props,
+			'link': self._link,
+			'inets': [x.__dict__() for x in self._inets]}
+
+
+def main():
+	parsed = parse_ip_addr()
+	if len(sys.argv) == 1:
+		pprint.pprint(parsed.__dict__())
+	else:
+		interface_name = sys.argv[1]
+		if len(sys.argv) == 2:
+			device = parsed.get_interface(interface_name)
+			pprint.pprint(device.__dict__())
+		else:
+			attr = sys.argv[2]
+			ip_version = 4
+			if len(sys.argv) == 4:
+				ip_version = int(sys.argv[3], 10)
+			interface = parsed.get_interface(interface_name)
+			if not interface:
+				return None
+			of_ip_version = [net for net in interface.inets if net.ip_version == ip_version]
+			network = of_ip_version.pop()
+			value = getattr(network, attr)
+			print(value)
+
+
+if __name__ == '__main__':
+	import pprint
+	import sys
+	main()
+
